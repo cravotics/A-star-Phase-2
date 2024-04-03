@@ -119,8 +119,6 @@ def draw_start_goal_points(canvas, start_x, start_y, goal_x, goal_y):
 draw_start_goal_points(Graph_map, start_x, start_y, goal_x, goal_y)
 
 
-
-# a and b are the coordinates of the center of the circle.
 # Function to save the canvas to a file
 def save_canvas(canvas, file_name):
     cv2.imwrite(file_name, canvas)
@@ -130,40 +128,46 @@ def save_canvas(canvas, file_name):
 file_name = "canvas.png"
 save_canvas(Graph_map, file_name)
 
-cv2.imshow("Resized Canvas", Graph_map)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# This function checks if the new position is valid within the map constraints and is not colliding with obstacles.
+def is_valid_position(x, y, graph_map):
+    rows, cols, _ = graph_map.shape
+    if 0 <= x < cols and 0 <= y < rows and np.array_equal(graph_map[int(y), int(x)], [255, 255, 255]):
+        return True
+    return False
 
-
-
-def possible_node(node, ul, ur):
+    
+def plot_curve(Xi, Yi, Thetai, UL, UR,c, plot, Node_List, Path_List):
     t = 0
-    new_nodes = []
-    x, y, theta = node
-    theta = np.deg2rad(theta)
-    dt = 0.1
-    rows, columns, _ = Graph_map.shape
+    r = 3.3 # in cm
+    L = 28.7 # in cm
+    dt = 0.1 # in seconds
+    cost = 0 
+    Xn = Xi 
+    Yn = Yi
+    Thetan = 3.14 * Thetai / 180 # Converting the angle to radians
+
     while t < 1:
         t = t + dt
-        xs = x
-        ys = y
-        x += 0.5 * R * (ul + ur) * np.cos(theta) * dt
-        y += 0.5 * R * (ul + ur) * np.sin(theta) * dt
-        theta += (R / L) * (ur - ul) * dt
-        plt.plot([xs, x], [ys, y], color="blue")
-        new_node = (x, y, np.rad2deg(theta)% 360)
-        next_x, next_y = new_node[0], new_node[1]
-        cost= L      
-        actions = [[ul, ul], [ur, ur], [ul, 0], [0, ul], [ul, ur], [ur, ul]]
+        Xs = Xn
+        Ys = Yn
+        Xn += r*0.5 * (UL + UR) * np.cos(Thetan) * dt
+        Yn += r*0.5 * (UL + UR) * np.sin(Thetan) * dt
+        Thetan += (r / L) * (UR - UL) * dt
+        # plt.plot([Xs, Xn], [Ys, Yn], color="blue")
+        if  is_valid_position(Xn, Yn, r, c):
+            if plot == 0:
+                # plt.plot([Xs, Xn], [Ys, Yn], color="blue")
+                c2g = heuristic((Xs, Ys), (Xn, Yn))
+                cost = cost + c2g
+                Node_List.append((Xn, Yn))
+                Path_List.append((Xs, Ys))
+            if plot == 1:
+                plt.plot([Xs, Xn], [Ys, Yn], color="red")
+        else:
+            return None
+    Thetan = 180 * (Thetan) / 3.14
+    return [Xn, Yn, Thetan, cost, Node_List, Path_List]
 
-        for action in actions:
-            new_nodes = possible_node(start_node, action[0], action[1])
-            for new_node in new_nodes:
-                possible_node(new_node, action[0], action[1])
-                if 0 <= next_x <= columns and 0 <= next_y < rows and np.all(Graph_map[int(next_y), int(next_x)] == [255, 255, 255]) and not visited_check(new_node):
-                     new_nodes.append((cost, new_node))
-
-    return new_nodes
 
 G = np.zeros((200, 600, 12), dtype=np.uint8)
 
@@ -188,15 +192,30 @@ def visited_check(node):
     i, j, k = matrix_indices(node)
     return G[i, j, k] == 1
 
+def get_new_nodes(current_node, actions, R, L):
+    new_nodes = []
+    x, y, theta = current_node
+    theta_rad = np.deg2rad(theta)
+    
+    # Iterate over all possible actions (RPM pairs) in the A star function
+    for action in actions:
+        ul_rpm, ur_rpm = action
+        ul = ul_rpm * (2 * np.pi / 60)  # Convert RPM to radians per second
+        ur = ur_rpm * (2 * np.pi / 60)
 
+        # Simulate the motion
+        new_x = x + 0.5 * R * (ul + ur) * np.cos(theta_rad) * 0.1  # Assuming dt = 0.1
+        new_y = y + 0.5 * R * (ul + ur) * np.sin(theta_rad) * 0.1
+        new_theta_rad = theta_rad + (R / L) * (ur - ul) * 0.1
 
+        # Check if new position is valid
+        if is_valid_position(new_x, new_y, Graph_map):
+            new_theta = np.rad2deg(new_theta_rad) % 360
+            cost_to_come = heuristic((x, y), (new_x, new_y))  # Your heuristic function can serve as a cost function
+            new_nodes.append(((new_x, new_y, new_theta), cost_to_come))
+    
+    return new_nodes
 
-plt.grid()
-plt.xlim(0, width)
-plt.ylim(0, height)
-plt.gca().invert_yaxis()
-plt.show()
-plt.close()
 
 def heuristic(node, goal):
     if node in heuristic_cache:
@@ -217,7 +236,8 @@ def A_star(start_node, goal_node):
     map_visualization = np.copy(Graph_map)
     marking_visited(start_node)
     step_count = 0 
-    
+    actions = [(0, RPM1), (RPM1, 0), (RPM1, RPM1), (0, RPM2), (RPM2, 0), (RPM2, RPM2), (RPM1, RPM2), (RPM2, RPM1)]
+
     # While loop to check the open_list is empty or not.
     while not open_list.empty():
         current_cost, current_node = open_list.get()
@@ -231,14 +251,18 @@ def A_star(start_node, goal_node):
             return path
         
         # If the current node is not equal to goal node, then it will check the possible nodes and add it to the open_list along with visulizing the node exploration.   
-        for cost, new_node in possible_node(current_node):
-            cost_to_come = cost_list[current_node] + cost
-            if new_node not in cost_list or cost_to_come < cost_list[new_node]:
-                cost_list[new_node] = cost_to_come
-                parent[new_node] = current_node
-                cost_total = cost_to_come + heuristic(new_node, goal_node) 
-                open_list.put((cost_total, new_node))
-                marking_visited(new_node)
+        for (new_node, move_cost) in get_new_nodes(current_node, actions, R, L):
+            # new_node is a tuple (x, y, theta)
+            if new_node not in closed_list:  # Check if we've already processed this node
+                new_cost_to_come = cost_list[current_node] + move_cost
+                
+                # Check if new_node is in cost_list and if the new path to it is better
+                if new_node not in cost_list or new_cost_to_come < cost_list[new_node]:
+                    cost_list[new_node] = new_cost_to_come
+                    total_cost = new_cost_to_come + heuristic(new_node, goal_node)
+                    open_list.put((total_cost, new_node))
+                    parent[new_node] = current_node
+                    marking_visited(new_node)
     return None
 
 def A_star_Backtracting(parent, start_node, end_node, map_visualization, step_count):
@@ -255,10 +279,6 @@ def A_star_Backtracting(parent, start_node, end_node, map_visualization, step_co
             output.write(map_visualization)
         step_count += 1 
     return path
-Xs, Ys, start_theta = start_node(width, height, Graph_map) # Getting the start node from the user
-Xg, Yg, goal_theta = goal_node(width, height, Graph_map) # Getting the goal node from the user
-
-
 #--------------------------------------Initializing the nodes------------------------------------#
 start_node = (Xs, Ys, start_theta)
 goal_node = (Xg, Yg)
