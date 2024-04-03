@@ -2,12 +2,27 @@ import numpy as np
 from queue import PriorityQueue
 import cv2
 import time
+import matplotlib.pyplot as plt
 
 #--------------------------------------------------Creating the Canvas----------------------------------------------------#
-height = 2000
-width = 6000
+height = 200
+width = 600
 Graph_map = np.ones((height, width, 3), dtype=np.uint8)*255
 robot_radius = 5
+
+RPM1 = 20
+RPM2 = 30
+R = 3.8  # Wheel radius
+
+# Convert RPM to radians per second
+ul = RPM1 * ((2 * np.pi) / 60)
+ur = RPM2 * ((2 * np.pi) / 60)
+
+# Wheel base of the waffle robot
+L = 30.6  
+
+heuristic_cache = {}
+
 #--------------------------------------------------Creating the User Interface-------------------------------------------------#
 
 ## Taking input from the user for start and goal nodes.
@@ -55,22 +70,22 @@ Total_clearance = clearance + r
 
 for x in range(width):
     for y in range(height):
-        y_transform = 2000 - y
+        y_transform = 200 - y
 
         # Wall clearance.
-        if (x <= 0 + Total_clearance or x >= 6000 - Total_clearance or y_transform <= 0 + Total_clearance or y_transform >= 2000 - Total_clearance):
+        if (x <= 0 + Total_clearance or x >= 600 - Total_clearance or y_transform <= 0 + Total_clearance or y_transform >= 200 - Total_clearance):
             Graph_map[y,x] = [0,255,0]
         
         # object 1(rectangle)
-        if (x >= 1500 and x <= 1750  and y_transform >= 1000 and y_transform <= 2000 ):
+        if (x >= 150 and x <= 175  and y_transform >= 100 and y_transform <= 200 ):
             Graph_map[y,x] = [0,0,0]
-        elif (x >= 1500 - Total_clearance  and x <= 1750 + Total_clearance and y_transform >= 1000 - Total_clearance and y_transform <= 2000 + Total_clearance):
+        elif (x >= 150 - Total_clearance  and x <= 175 + Total_clearance and y_transform >= 100 - Total_clearance and y_transform <= 200 + Total_clearance):
             Graph_map[y,x] = [0, 255, 0]
         
         # object 2(rectangle)
-        if (x >= 2500 and x <= 2750 and y_transform >= 0 and y_transform <= 1000):
+        if (x >= 250 and x <= 275 and y_transform >= 0 and y_transform <= 100):
             Graph_map[y,x] = [0,0,0]
-        elif(x >= 2500 - Total_clearance and x <= 2750 + Total_clearance and y_transform >= 0 - Total_clearance and y_transform <= 1000 + Total_clearance):
+        elif(x >= 250 - Total_clearance and x <= 275 + Total_clearance and y_transform >= 0 - Total_clearance and y_transform <= 100 + Total_clearance):
              Graph_map[y,x] = [0, 255, 0] 
 
 #--------------------------------------------------Creating the Obstacles-------------------------------------------------#
@@ -78,12 +93,12 @@ for x in range(width):
 # object 3(circle) using half planes method 
 for x in range(width):
     for y in range(height):
-        y_transform = 2000 - y
+        y_transform = 200 - y
     
-        if ((x-4200)**2 + (y_transform-1200)**2 <= (600 + Total_clearance)**2):
+        if ((x-420)**2 + (y_transform-120)**2 <= (60 + Total_clearance)**2):
             Graph_map[y, x] = [0,255,0] 
 
-        if ((x-4200)**2 + (y_transform -1200)**2 <= (600)**2):
+        if ((x-420)**2 + (y_transform -120)**2 <= (60)**2):
             Graph_map[y, x] = [0,0,0]  
 
 
@@ -98,36 +113,10 @@ goal_x, goal_y = goal_node
 #--------------------------------------------------Creating the Graph-------------------------------------------------#
 def draw_start_goal_points(canvas, start_x, start_y, goal_x, goal_y):
     # Draw the start point in red
-    cv2.circle(canvas, (start_x, start_y), 10, (0, 0, 255), -1)
+    cv2.circle(canvas, (start_x, start_y), 1, (0, 0, 255), -1)
     # Draw the goal point in blue
-    cv2.circle(canvas, (goal_x, goal_y), 10, (255, 0, 0), -1)
+    cv2.circle(canvas, (goal_x, goal_y), 1, (255, 0, 0), -1)
 draw_start_goal_points(Graph_map, start_x, start_y, goal_x, goal_y)
-
-
-def resize_canvas(canvas, scale_percent):
-    """
-    Resizes the canvas by a specified percentage, maintaining the aspect ratio.
-    
-    Args:
-    - canvas (np.array): The original canvas to resize.
-    - scale_percent (float): The percentage (as a decimal) to scale the canvas. 
-      For example, 0.5 for 50% size reduction.
-      
-    Returns:
-    - resized_canvas (np.array): The resized canvas.
-    """
-    width = int(canvas.shape[1] * scale_percent)
-    height = int(canvas.shape[0] * scale_percent)
-    dim = (width, height)
-
-    resized_canvas = cv2.resize(canvas, dim, interpolation=cv2.INTER_AREA)
-    
-    return resized_canvas
-
-# Example usage
-scale_percent = 0.5  # For example, to reduce the canvas size to 70% of its original size
-resized_canvas = resize_canvas(Graph_map, scale_percent)
-
 
 # a and b are the coordinates of the center of the circle.
 # Function to save the canvas to a file
@@ -139,6 +128,72 @@ def save_canvas(canvas, file_name):
 file_name = "canvas.png"
 save_canvas(Graph_map, file_name)
 
-cv2.imshow("Resized Canvas", resized_canvas)
+cv2.imshow("Canvas", Graph_map)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+
+
+def plot_curves(node, ul, ur):
+    t = 0
+    new_nodes = []
+    x, y, theta = node
+    theta = np.deg2rad(theta)
+    dt = 0.1
+
+    while t < 1:
+        t = t + dt
+        xs = x
+        ys = y
+        x += 0.5 * r * (ul + ur) * np.cos(theta) * dt
+        y += 0.5 * r * (ul + ur) * np.sin(theta) * dt
+        theta += (r / L) * (ur - ul) * dt
+        plt.plot([xs, x], [ys, y], color="blue")
+        new_nodes.append((x, y, np.rad2deg(theta)))
+
+    return new_nodes
+
+G = np.zeros((200, 600, 12), dtype=np.uint8)
+
+# Getting the indices of the matrix.
+def matrix_indices(node):
+    x, y, theta = node
+    x = round(x)
+    y = round(y)
+    i = int(2 * y) 
+    j = int(2 * x)  
+    k = int(theta / 30) % 12  
+    return i, j, k
+
+# Marking the visited nodes.
+def marking_visited(node):
+    i, j, k = matrix_indices(node)
+    if 0 <= i < 1000 and 0 <= j < 2400: 
+        G[i, j, k] = 1
+
+# Checking the visited nodes.
+def visited_check(node):
+    i, j, k = matrix_indices(node)
+    return G[i, j, k] == 1
+
+
+actions = [[ul, ul], [ur, ur], [ul, 0], [0, ul], [ul, ur], [ur, ul]]
+
+for action in actions:
+    new_nodes = plot_curves(start_node, action[0], action[1])
+    for new_node in new_nodes:
+        plot_curves(new_node, action[0], action[1])
+
+plt.grid()
+plt.xlim(0, width)
+plt.ylim(0, height)
+plt.gca().invert_yaxis()
+plt.show()
+plt.close()
+
+def heuristic(node, goal):
+    if node in heuristic_cache:
+        return heuristic_cache[node]
+    else:
+        heuristic_value = np.sqrt((node[0] - goal[0])**2 + (node[1] - goal[1])**2)
+        heuristic_cache[node] = heuristic_value
+        return heuristic_value
