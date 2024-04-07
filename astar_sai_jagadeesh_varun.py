@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 from queue import PriorityQueue
 import cv2
@@ -64,16 +65,25 @@ def step_size_function():
 
 def print_a_star_ascii():
     print("""
+
     ___                _____  __                                __   __       ____ _             __           
    /   |              / ___/ / /_ ____ _ _____   ____   ____ _ / /_ / /_     / __/(_)____   ____/ /___   _____
   / /| |    ______    \__ \ / __// __ `// ___/  / __ \ / __ `// __// __ \   / /_ / // __ \ / __  // _ \ / ___/
  / ___ |   /_____/   ___/ // /_ / /_/ // /     / /_/ // /_/ // /_ / / / /  / __// // / / // /_/ //  __// /    
 /_/  |_|            /____/ \__/ \__,_//_/     / .___/ \__,_/ \__//_/ /_/  /_/  /_//_/ /_/ \__,_/ \___//_/     
-                                             /_/                                                                  """)
+                                             /_/                                                                  
+                                                |--[]--|
+                                                |      |
+                                          WITH  |      | WAFFLE BOT
+                                                |______|
+                                                  \__/
+          Hello, welcome to our A* Algorithm implementation.
+          This program will help you to find the optimal path from start node to goal node.
+          The program will ask you to enter the start node and goal node along with the RPM values.""")
 
 print_a_star_ascii()
 # User input for radius of the robot.
-radius_of_robot = 22
+radius_of_robot = 22.0
 clearance = int(input("Enter the clearance of the obstacles: "))
 step_size = 28.7
 Total_clearance = radius_of_robot + clearance
@@ -121,8 +131,6 @@ for x in range(width):
 # plot the graph map
 
 
-cv2.imshow("Graph Map", Graph_map)
-cv2.waitKey(0)
 def is_valid(x, y, Graph_map):
     if x >= 0 and x < width and y >= 0 and y < height:
         # return np.all(Graph_map[int(y), int(x)] == [255, 255, 255])
@@ -133,17 +141,18 @@ def is_valid(x, y, Graph_map):
     
 def possible_node(current_node, RPM1, RPM2, Graph_map, L = 28.7, R = 3.3):  
     dt = 0.1 
-    ul_vel = RPM1*(2*np.pi/60)
-    ur_vel = RPM2*(2*np.pi/60)
+    ul_vel = RPM1*R*(2*np.pi/60)
+    ur_vel = RPM2*R*(2*np.pi/60)
     Curr_Node_X = current_node[0] #Grab Current Node X
     Curr_Node_Y = current_node[1] #Grad Current Node Y
     Curr_Node_Theta = np.deg2rad(current_node[2]) #Grab Current Node Theta, convert to radians.
-
     distance_cost = 0.0 #Init Cost
     actions = [(0, ul_vel), (ul_vel,0) ,(ul_vel,ul_vel), (0,ur_vel), (ur_vel,0), (ur_vel,ur_vel), (ul_vel,ur_vel), (ur_vel,ul_vel)] #All Possible Actions
     for action in actions:
         ul, ur = action
         t = 0
+        velocities = []
+
         next_x = Curr_Node_X #Set New Node Start Point X
         next_y = Curr_Node_Y #Set New Node Start Point Y
         next_theta = Curr_Node_Theta #Set New Node Start Point Theta
@@ -151,10 +160,12 @@ def possible_node(current_node, RPM1, RPM2, Graph_map, L = 28.7, R = 3.3):
         ##----------------Euler Integration to Generate Curvature----------------##
         while t < 1:
             t += dt
-            del_x = 0.5*R*(ul+ur)*np.cos(next_theta)*dt
-            del_y = 0.5*R*(ul+ur)*np.sin(next_theta)*dt
-            del_theta = (R/L)*(ur-ul)*dt
-
+            linear_vel = 0.5*(ul+ur)
+            angular_vel = (ul-ur)/(L)
+            del_x = 0.5*(ul+ur)*np.cos(next_theta)*dt
+            del_y = 0.5*(ul+ur)*np.sin(next_theta)*dt
+            del_theta = (1/L)*(ur-ul)*dt
+            velocities.append((float(linear_vel), float(angular_vel)))
             next_x += del_x
             next_y += del_y
             next_theta += del_theta
@@ -170,13 +181,12 @@ def possible_node(current_node, RPM1, RPM2, Graph_map, L = 28.7, R = 3.3):
              next_theta -= 360
         next_theta = int(round(next_theta))
 
-        print(next_x, next_y, next_theta)
-
         # Ensure next_x and next_y are within bounds
         if 0 <= next_x < width and 0 <= next_y < height:
             if is_valid(next_x, next_y, Graph_map) and not visited_check((next_x, next_y, next_theta)):
                 distance_cost = np.sqrt((current_node[0] - next_x)**2 + (current_node[1] - next_y)**2)
-                yield (distance_cost, (next_x, next_y, next_theta))
+                print("Distance Cost: ", distance_cost, "Next X: ", next_x, "Next Y: ", next_y, "Next Theta: ", next_theta)
+                yield (distance_cost, (next_x, next_y, next_theta), velocities)
 
 #-----------------------------------------Creating the Video File-------------------------------------------------#
 # Creating a video file to store the output.
@@ -208,18 +218,18 @@ def A_star(start_node, goal_node, RPM1, RPM2):
         closed_list.add(current_node)
         
         # If the current node is equal to goal node, then it will break the loop and return the path along with writing the path to the video.
-        if heuristic(current_node, goal_node) < 3.0:
-            path = A_star_Backtracting(parent, start_node, current_node, map_visualization, step_count)
+        if heuristic(current_node, goal_node) < 1.5:
+            all_vels = A_star_Backtracting(parent, start_node, current_node, map_visualization, step_count)
             for _ in range(80):
                output.write(map_visualization)
-            return path
+            return all_vels, parent
         
         # If the current node is not equal to goal node, then it will check the possible nodes and add it to the open_list along with visulizing the node exploration.   
-        for cost, new_node in possible_node(current_node, RPM1, RPM2, map_visualization):
+        for cost, new_node,velocities in possible_node(current_node, RPM1, RPM2, map_visualization):
             cost_to_come = cost_list[current_node] + cost
             if new_node not in cost_list or cost_to_come < cost_list[new_node]:
                 cost_list[new_node] = cost_to_come
-                parent[new_node] = current_node
+                parent[new_node] = (current_node, velocities)
                 cost_total = cost_to_come + heuristic(new_node, goal_node) 
                 open_list.put((cost_total, new_node))
                 marking_visited(new_node)
@@ -229,7 +239,7 @@ def A_star(start_node, goal_node, RPM1, RPM2):
                 step_count += 1
     
     output.release()
-    return None
+    return None, None
 #-------------------------Creating the Matrix using second method----------------------------------#
 # Getting the indices of the matrix.
 def matrix_indices(node):
@@ -254,19 +264,29 @@ def visited_check(node):
 
 #---------------------------Creating the Backtracking Function--------------------------------------#
 def A_star_Backtracting(parent, start_node, end_node, map_visualization, step_count):
-    path = [end_node] # Adding end node to the path
+    parent_and_velocities = [(end_node, parent[end_node][1] if end_node in parent else (0, 0))]
     while end_node != start_node: # If the end node is not equal to start_node, parent of the end_node is added to path and continues.
-        path.append(parent[end_node])
-        end_node = parent[end_node] # The parent of end node becomes the current node.
-    path.reverse()
-    for i in range(len(path) - 1):
-        start_point = (int(path[i][0]), int(path[i][1]))  # Converting the coordinates for visualization.
-        end_point = (int(path[i + 1][0]), int(path[i + 1][1]))
-        cv2.circle(map_visualization, start_point, 1, (0, 255, 0), 1) # Drawing the path.
-        if step_count % 5 == 0:
-            output.write(map_visualization)
-        step_count += 1 
-    return path
+        temp_nodes = parent[end_node] # The parent of end node becomes the current node.
+        parent_node, velocity= temp_nodes
+        end_node = parent_node
+        parent_and_velocities.append((end_node, velocity))
+        
+    parent_and_velocities.reverse()
+    all_vels = []
+    for i in range(len(parent_and_velocities) - 1):
+        start_point, init_vel = ((parent_and_velocities[i][0][0]), parent_and_velocities[i][0][1]), parent_and_velocities[i][1]
+        end_point = (parent_and_velocities[i + 1][0][0]), (parent_and_velocities[i + 1][0][1])
+        x_start, y_start = start_point
+        print("Start Point: ", x_start, y_start)
+        x_end, y_end = end_point
+        print("Start Point: ", x_end, y_end)
+        for lin_vel, ang_vel in init_vel:
+            all_vels.append((lin_vel/100, ang_vel))
+            cv2.arrowedLine(map_visualization, (int(x_start), int(y_start)), (int(x_end), int(y_end)), (0, 255, 0), 1)
+            if step_count % 5 == 0:
+                output.write(map_visualization)
+            step_count += 1 
+    return all_vels
     
 Xs, Ys, start_theta = start_node(width, height, Graph_map) # Getting the start node from the user
 Xg, Yg = goal_node(width, height, Graph_map) # Getting the goal node from the user
@@ -278,14 +298,18 @@ goal_node = (Xg, Yg)
 RPM1, RPM2 = step_size_function()
 
 start_time = time.time()   # Starting to check the runtime.
-path = A_star(start_node, goal_node, RPM1, RPM2)
+all_vels, parents = A_star(start_node, goal_node, RPM1, RPM2)
 
-if path is None:
+if parents is None:
     print("No optimal path found")
 else:
-    print("Path found")
+    print("Path found for the waffle bot")
 
 end_time = time.time()    # end of runtime
 print(f'Runtime : {((end_time-start_time)/60):.2f} Minutes')
+print("The video file has been saved as a_star_varun_lakshmanan_sai_jagadeesh_muralikrishnan.mp4")
 
+output.release()
+cv2.imshow("Graph_map", Graph_map)
+cv2.waitKey(0)
 #--------------------------------------------------End of the Program-------------------------------------------------#
