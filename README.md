@@ -38,20 +38,22 @@ Enter the RPM 1 : 25
 Enter the RPM 2 : 30
 ```
 
-# How It Works
+## How It Works
 * Visualization and Tree Search
 The program utilizes OpenCV to draw the environment using the given map, obstacles, and the search tree as it searches for the optimal path. Each node expansion is visualized, with the tree covering the navigatable space until the goal node is reached within the threshold.
 
-# Final Path
+## Final Path
 Upon finding the optimal path, the program traces back from the goal node to the start node, highlighting the path on the visualization. This path represents the sequence of movements (linear and angular velocities) the robot needs to follow to reach the goal.
 
-# Output
+## Output
 The program outputs a video file a_star_varun_lakshmanan_sai_jagadeesh_muralikrishnan.mp4 showing the search process and the final path. Additionally, it prints the runtime and confirms whether an optimal path was found at the end.
+
+The  Drive link for the video file : https://drive.google.com/file/d/1Qu1RQOr4MGiZxt2bHAG2v7PU6C_ERNHB/view?usp=sharing 
 
 # Part-2
 
-Terminal Interface instructions
-* Creata a ros 2 workspace for the the source file to place inside it 
+# Terminal Interface instructions
+* Create a ros 2 workspace for the the source file to place inside it 
 ```bash
 mkdir -p <project_workspace>/src
 cd <project_workspace>
@@ -76,6 +78,7 @@ Start Node: (X, Y) coordinates and orientation angle (theta) of the start positi
 Goal Node: (X, Y) coordinates of the goal position in centimeters.
 RPM1 and RPM2: Wheel RPM values.
 
+The below found va
 ```bash
 Enter the clearance of the obstacles: 5
 Enter the x-coordinate of the start node(Xs) in cm: 50
@@ -100,7 +103,11 @@ angular_vel = (ul-ur)/(L)
 - The Publisher class publishes the calculated linear.x and angular.z velocities to the robot via ROS 2, enabling real or simulated movement.
 - Upon successful execution, the program will:
 
-Prints the runtime and confirmation of path finding in the console.
-Generates a video a_star_varun_lakshmanan_sai_jagadeesh_muralikrishnan.mp4 showing the node exploration and final path.
-Publishs linear and angular velocities to the TurtleBot3 via ROS 2 and there by observed the Waffle robot followuing the path in the Gazebo.
+- Prints the runtime and confirmation of path finding in the console.
+- Generates a video a_star_varun_lakshmanan_sai_jagadeesh_muralikrishnan.mp4 showing the node exploration and final path.
+- Publishes linear and angular velocities to the TurtleBot3 via ROS 2 and thereby observes the Waffle robot following the path in the Gazebo.
 
+The  Drive link for the video file : https://drive.google.com/file/d/1qFI6PA4-xlRlGEya93Uhna_LDCmZyfci/view?usp=sharing 
+
+The Github repository link for the codes and package:
+https://github.com/cravotics/A-star-Phase-2 
