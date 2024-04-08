@@ -1,8 +1,10 @@
 # A* Algorithm for TurtleBot3 Waffle
 
-## Introduction
-This README guides you through running an A* algorithm implementation tailored for the TurtleBot3 Waffle robot. The program navigates the robot from a start node to a goal node, considering non-holonomic constraints and avoiding obstacles.
-
+## Team  
+| Team Members                 | UID       | Directory ID |
+|------------------------------|-----------|--------------|
+| Sai Jagadeesh Muralikrishnan | 120172243 | jagkrish     |
+| Varun Lakshmanan             | 120169595 | varunl11     |
 ## Prerequisites
 Ensure you have the following installed:
 - Python 3.8 or newer
